@@ -1,0 +1,580 @@
+---
+title: "Bank_Marketing"
+author: "Senthilkumar Chandrasekaran"
+date: "February 3, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The primary function of bank is to accept deposits for the purpose of lending. They mobilize capital by offering interests at specific rates and lend the money to individuals, institutions based on their profile and requirements at a higher interest rate thereby making profit. Banks normally promote their products (Services) through direct marketing campaign.
+The data I analysed is from a Portugal based bank which did direct marketing campaign to sell a term deposit product by making phone calls. The data has been generated based on the campaign targeting the potential individuals in year 2008 to 2010.
+
+
+The business objective for this project is to identify the target customers who will subscribe to the newly launched term deposit plan in the Portuguese Bank by analysing few indicators which includes the client's data available in the bank along with few more constructs on the marketing campaign.
+The Objectives are broadly classified into two: 
+1)	Determine the variables that are statistically significant and thereby influencing the purchase of term deposit
+2)	Determine the probability of each customer who will subscribe to the term deposit. 
+The success criteria would be the "Accuracy with which the potential customers are identified for the term deposit subscription at an early stage without the corresponding risk of incorrectly tagging the non-subscribers as potential subscribers and spending the time and money on them".
+
+```{r}
+rm(list=ls())
+getwd()
+setwd("C:/PGPMFX/Term5/BA/Project")
+bank <-read.csv("bank-full.csv", sep = ";")
+library(psych)
+headTail(bank)
+str(bank)
+```
+
+The data contains 45211 records with 16 independent variables and 1 dependent variable. Often, more than one contact to the same client was required, in order to access if the product (bank term deposit) would be (or not) subscribed. Data is mix of Continuous and Categorical variables including demographic details. The predictor variable is probability (0 to 1) value. 
+This dataset has no missed out values and hence no imputation is necessary. Moreover, there is no need to code as the variable types are already correct. The dependent variable - term deposit subscription alone was recoded to 0 and 1 binary instead of two factors - yes and no.
+The Null Hypothesis H0 is that there is no significant relationship between the term deposit subscription and the remaining 16 variables. Alternate Hypothesis, H1 is that there is significant relationship between the dependent and independent variables.
+
+
+## Including Plots
+
+Bar Charts:
+
+```{r echo=TRUE}
+# Grouped Bar Plot
+barplot(table(bank$y, bank$education), main="Distribution of Education vs Deposit",
+        xlab="Education", col=c("darkblue","red"),
+        legend = rownames(table(bank$y, bank$education)), beside=TRUE)
+```
+The above chart of Education Vs Deposit shows that clients with secondary education is high but their subscription to term deposit is not so high.
+
+```{r}
+barplot(table(bank$y, bank$marital), main="Distribution of Marital Status vs Deposit",
+        xlab="Marital Status", col=c("darkblue","red"),
+        legend = rownames(table(bank$y, bank$marital)), beside=TRUE)
+```
+The above chart of marital status vs Deposit shows that the large number of clients are married. In absolute terms, their subscription is high. But in relative terms, the clients who are single are subscribed higher.
+
+Pie Chart
+```{r}
+# Pie Chart of Term Deposit Subscription
+library(plotrix)
+tab_sub <- table(bank$y)
+pct <- round(tab_sub/sum(tab_sub)*100)
+#lbls <- paste(lbls, pct) # add percents to labels 
+lbls <- paste(pct,"%",sep="") # ad % to labels
+pie3D(tab_sub,labels=lbls,explode=0.5,
+      main="Pie Chart of Term Deposit Subscription ")
+```
+The above Pie chart shows that 12% of the clients are subscribed and 88% of the clients are not subscribed to term deposit. The data is imbalanced. The analysis were done with and without imbalanced data.
+
+Histograms
+Histograms are created for continuous data. The outliers are truncated to understand the data better. Age seems to be normally distributed while the other continuous variables like Bank Balance, no. of contacts made for a customer in present campaign, duration of the call etc. are not normally distributed. There are outliers in these variables.
+```{r}
+hist(bank$age, col = "green")
+hist(bank$balance, col = "blue", xlim = c(0,20000))
+hist(bank$campaign, col = "cyan", xlim = c(0,30))
+hist(bank$day, col = "magenta")
+hist(bank$duration, col = "violet", xlim = c(0,2000))
+hist(bank$pdays, col = "dark green", xlim = c(0,400))
+hist(bank$previous, col = "dark blue", xlim = c(0,50))
+```
+
+Box Plots
+Box plots of continuous variables are created with respect to the subscription. These give an understanding of the outliers present in the data.
+```{r}
+boxplot(age~y, data=bank, notch=TRUE, 
+        col=(c("gold","darkgreen")),
+        main="Age and Subscription", xlab="Subscription")
+
+boxplot(balance~y, data=bank, notch=TRUE, 
+        col=(c("gold","blue")),
+        main="Balance and Subscription", xlab="Subscription")
+
+boxplot(campaign~y, data=bank, notch=TRUE, 
+        col=(c("gold","cyan")),
+        main="Campaign and Subscription", xlab="Subscription")
+
+boxplot(day~y, data=bank, notch=FALSE, 
+        col=(c("gold","magenta")),
+        main="Day and Subscription", xlab="Subscription")
+
+boxplot(duration~y, data=bank, notch=TRUE, 
+        col=(c("gold","violet")),
+        main="Duration and Subscription", xlab="Subscription")
+
+boxplot(pdays~y, data=bank, notch=FALSE, 
+        col=(c("gold","dark green")),
+        main="Days Passed and Subscription", xlab="Subscription")
+
+boxplot(previous~y, data=bank, notch=FALSE, 
+        col=(c("gold","dark blue")),
+        main="Previous Campaign and Subscription", xlab="Subscription")
+```
+
+Descriptive Statistics
+```{r}
+#Descriptive Stats Summary
+library(dlookr)
+library(dplyr)
+describe(bank)
+```
+Descriptive Statistics shows the Skewness present in the dataset. To remove the outliers and to make the data to be normally distributed, further analysis carried out. Below graphs shows how the data can be transformed and which transformation will work.
+
+```{r}
+plot_normality(bank, balance)
+plot_normality(bank, day)
+plot_normality(bank, duration)
+plot_normality(bank,campaign) 
+plot_normality(bank, pdays)
+plot_normality(bank, previous)
+plot_correlate(bank)
+```
+Correlation of the continuous variables shows that none of the variables are strongly correlated with respect to the others. pdays and previous have weak correlation.
+
+Plot Outliers
+To further analyse the outliers, outliers plot were created. The objective of these outliers plot is to analyse whether by "capping" the bottom 5 percentile and top 95 percentile will make the distribution to be smoother since I don't want to make all the data to be normally distributed because of the data nature.
+
+```{r}
+bank %>%
+  plot_outlier(balance)
+
+bank %>%
+  plot_outlier(day)
+
+bank %>%
+  plot_outlier(duration)
+
+bank %>%
+  plot_outlier(campaign)
+
+bank %>%
+  plot_outlier(pdays)
+
+bank %>%
+  plot_outlier(previous)
+```
+
+Data Standardization:
+As mentioned above, the outliers the bottom 5 percentile and top 95 percentile data were capped for some of the continuous variables as given below. The capping resulted in reduction in outliers. The capped data are binded to the master data as separate columns.
+```{r}
+# Imputation of Outlier through 95% upper and 5% lower Capping 
+
+age_imp <- imputate_outlier(bank, age, method = "capping")
+summary(age_imp)
+plot(age_imp)
+bank <-cbind(bank,age_imp)
+
+balance_imp <- imputate_outlier(bank, balance, method = "capping")
+summary(balance_imp)
+plot(balance_imp)
+bank <-cbind(bank,balance_imp)
+
+campaign_imp <- imputate_outlier(bank, campaign, method = "capping")
+summary(campaign_imp)
+plot(campaign_imp)
+bank <-cbind(bank,campaign_imp)
+
+duration_imp <- imputate_outlier(bank, duration, method = "capping")
+summary(duration_imp)
+plot(duration_imp)
+bank <-cbind(bank,duration_imp)
+
+pdays_imp <- imputate_outlier(bank, pdays, method = "capping")
+summary(pdays_imp)
+plot(pdays_imp)
+bank <-cbind(bank,pdays_imp)
+
+previous_imp <- imputate_outlier(bank, previous, method = "capping")
+summary(previous_imp)
+plot(previous_imp)
+bank <-cbind(bank,previous_imp)
+```
+
+Box plots for Outliers minimized data:
+Box plots are again created with the capped data to see the distribution. Compared to the original data, these capped data distribution is good without affecting its distribution much.
+```{r}
+#Box Plots - Imputed & Outliers minimized variables
+boxplot(age_imp~y, data=bank, notch=TRUE, 
+        col=(c("gold","darkgreen")),
+        main="Age and Subscription", xlab="Subscription")
+
+boxplot(balance_imp~y, data=bank, notch=TRUE, 
+        col=(c("gold","blue")),
+        main="Balance and Subscription", xlab="Subscription")
+
+boxplot(campaign_imp~y, data=bank, notch=TRUE, 
+        col=(c("gold","cyan")),
+        main="Campaign and Subscription", xlab="Subscription")
+
+boxplot(duration_imp~y, data=bank, notch=TRUE, 
+        col=(c("gold","violet")),
+        main="Duration and Subscription", xlab="Subscription")
+
+boxplot(pdays_imp~y, data=bank, notch=FALSE, 
+        col=(c("gold","dark green")),
+        main="Days Passed and Subscription", xlab="Subscription")
+
+boxplot(previous_imp~y, data=bank, notch=FALSE, 
+        col=(c("gold","dark blue")),
+        main="Previous Campaign and Subscription", xlab="Subscription")
+```
+
+Category reduction in variables - Analysis by percentage and absolute numbers
+There are categorical variables which has more levels like Job, marital status etc. These needs to be analysed and grouped together based on the similarity of the percentage of events occurring when compared to the total of events and non-events.
+```{r}
+table(bank$job, bank$y)
+round(prop.table(table(bank$job, bank$y),1),2)
+```
+
+```{r}
+table(bank$education, bank$y)
+round(prop.table(table(bank$education, bank$y),1),2)
+```
+
+```{r}
+table(bank$month, bank$y)
+round(prop.table(table(bank$month, bank$y),1),2)
+```
+
+```{r}
+table(bank$marital, bank$y)
+round(prop.table(table(bank$marital, bank$y),1),2)
+```
+
+```{r}
+table(bank$poutcome, bank$y)
+round(prop.table(table(bank$poutcome, bank$y),1),2)
+```
+
+```{r}
+table(bank$contact, bank$y)
+round(prop.table(table(bank$contact, bank$y),1),2)
+```
+
+```{r}
+#Category reduction in variables by similar percentage of events using Rockchalk library
+
+library(rockchalk)
+```
+
+
+```{r, results='hide'}
+#Combine Job levels to 4
+job_level1 <-combineLevels(bank$job,c("student","retired"),newLabel=c("st_re"))
+job_level2 <-combineLevels(job_level1,c("unemployed","management"),newLabel=c("une_mgmt"))
+job_level3 <-combineLevels(job_level2,c("blue-collar","entrepreneur","housemaid",
+                                     "services"),newLabel=c("bl_en_hm_se"))
+job_level <-combineLevels(job_level3,c("admin.","self-employed","technician",
+                                        "unknown"),newLabel=c("ad_sel_te_unk"))
+table(job_level)
+bank <-cbind(bank,job_level)
+```
+
+```{r, results='hide'}
+#Combine month levels to 3 
+month_level1 <-combineLevels(bank$month,c("aug","jan","jun","jul","may","nov"),newLabel=c("Ja_Ma_Ju_Jul_Au_No"))
+month_level2 <-combineLevels(month_level1,c("mar","sep","oct","dec"),newLabel=c("Mar_Se_Oc_De"))
+month_level <-combineLevels(month_level2,c("apr","feb"),newLabel=c("Fe_Ap"))
+table(month_level)
+bank <-cbind(bank,month_level)
+```
+
+```{r, results='hide'}
+#Combine education levels to 2
+edu_level1 <-combineLevels(bank$education,c("primary","secondary"),newLabel=c("Pri_Sec"))
+edu_level <-combineLevels(edu_level1,c("tertiary","unknown"),newLabel=c("ter_unk"))
+table(edu_level)
+bank <-cbind(bank,edu_level)
+```
+
+```{r, results='hide'}
+#Combine marital levels to 2
+marital_level <-combineLevels(bank$marital,c("single","divorced"),newLabel=c("Si_Di"))
+table(marital_level)
+bank <-cbind(bank,marital_level)
+```
+
+```{r, results='hide'}
+#Combine poutcome levels to 2
+poutcome_level <-combineLevels(bank$poutcome,c("failure","other","unknown"),newLabel=c("rest"))
+table(poutcome_level)
+bank <-cbind(bank,poutcome_level)
+```
+
+```{r}
+#Correlation of Continuous Variables - Before Outlier reduction
+cor(bank[,c(6,12,13,14,15)])
+```
+
+```{r}
+#Correlation of Continuous Variables - After Outlier reduction
+cor(bank[,c(19,20,21,22,23)])
+```
+Correlation of Continuous variables after the outlier reduction shows that pdays and previous are correlated and hence one can be removed. Here I removed pdays.
+
+
+Data Partition:
+Data has been separated to Training and Test dataset with probability of 0.5 (exactly split into two) based on the dependent variable.
+```{r, results='hide'}
+#Data Classification to Train and Test
+library(caret)
+set.seed(1234)
+train <- createDataPartition(bank$y, list=FALSE) #create 2 set of data by Random sampling
+train
+
+bank.train <- bank[train, ]
+bank.test <- bank[-train, ] #-train is complement to train data
+```
+
+```{r, results='hide'}
+#Convert Yes No to 1 and 0 respectively
+bank.train$ObsY <- ifelse (bank.train$y == "yes", 1,0)
+bank.test$ObsY <- ifelse (bank.test$y == "yes", 1,0)
+bank.test$ObsY <- as.integer(bank.test$ObsY)
+bank.train$ObsY <- as.integer(bank.train$ObsY)
+```
+
+```{r}
+headTail(bank.train)
+```
+
+```{r}
+headTail(bank.test)
+```
+
+```{r}
+summary(bank.train)
+```
+
+```{r}
+summary(bank.test)
+```
+
+Logistic regression with original data (unstandardized) is performed to analyse the significant variable. For every n level of categorical variable, R automatically creates n-1 dummy variable.
+```{r}
+#Logistic Regression - Original Data
+bank.glm <- glm(y ~ age + job + marital + education + default
+                + balance + housing + loan + contact + day
+                + month + duration + campaign + pdays + previous
+                + poutcome, data = bank.train, family = "binomial")
+summary(bank.glm)
+```
+
+```{r}
+confint(bank.glm)
+```
+Logistic Regression shows, Job: Blue-collar, entrepreneur, housemaid, student; Education: Tertiary; Balance; housing loan; personal loan; contact: unknown; days; months: all except dec & feb; duration; campaign; previous; poutcome: success along with their reference variables are statistically significant in influencing the outcome of term deposit subscription. Their confidence intervals are not overlapping with 0 as well. The Estimate (Beta) shows the odds.
+
+Logistic Regression with Standardized data (Outlier reduction and level standardization for categorical variables) is performed to analyse the influence of variables on the outcome.
+```{r}
+#Logistic Regression - Standarized Data. poutcome removed due to its correlation with previous campaign
+bank.glm1 <- glm(y ~ age_imp + job_level + marital_level + edu_level + default
+                + balance_imp + housing + loan + contact + day
+                + month_level + duration_imp + campaign_imp + previous_imp
+                + poutcome_level, data = bank.train, family = "binomial")
+summary(bank.glm1)
+```
+
+```{r}
+confint(bank.glm1)
+```
+The analysis shows that age, job, education, balance, housing loan, personal loan, contact: unknown & cellular, months, duration, campaign, previous, poutcome became statistically significant variables in influencing the term deposit subscription.
+
+
+
+Data Prediction has been carried out with respect to the original data and standardized dataset.
+```{r}
+#Prediction - Original data
+bank.test$predSub <- predict.glm(bank.glm, newdata = bank.test, type = "response")
+headTail(bank.test)
+```
+
+```{r}
+#Prediction - Standardized data
+bank.test$predSub1 <- predict.glm(bank.glm1, newdata = bank.test, type = "response")
+headTail(bank.test)
+```
+
+INFERENCES FROM LOGISTIC REGRESSION OF IMBALANCED DATA
+```{r}
+#Confusion Matrix - Original data
+library(SDMTools)
+confusion.matrix(bank.test$ObsY, bank.test$predSub, threshold = 0.5)
+accuracy(bank.test$ObsY, bank.test$predSub, threshold = 0.5)
+```
+
+```{r}
+#Confusion Matrix - Standarized data
+library(SDMTools)
+confusion.matrix(bank.test$ObsY, bank.test$predSub1, threshold = 0.5)
+accuracy(bank.test$ObsY, bank.test$predSub1, threshold = 0.5)
+```
+Confusion Matrix of Standardized data has better prediction of True Positive (including Sensitivity) while the Original data has better prediction of True Negative (Specificity).
+The accuracy of the model is better for Standardized dataset (66.55%) when compared to the original dataset (65.86%). 
+Cohen's Kappa which is the classification accuracy normalized by the imbalance of the classes in the data is little better for the Standardized data (0.406) when compared to the original data (0.401). Landis and Koch (1977) provide a way to characterize values. According to their scheme a value < 0 is indicating no agreement, 0-0.20 as slight, 0.21-0.40 as fair, 0.41-0.60 as moderate, 0.61-0.80 as substantial, and 0.81-1 as almost perfect agreement
+
+
+```{r}
+#ROC Curve - Original data
+library(pROC)
+myROC <- roc(bank.test$y, bank.test$predSub)
+myROC
+plot(myROC)
+```
+
+```{r}
+#ROC Curve - Standarized data
+library(pROC)
+myROC1 <- roc(bank.test$y, bank.test$predSub1)
+myROC1
+plot(myROC1)
+```
+AUC of Standardized data is better at 90.86% when compared to the original data 90.59%
+
+Optimum Threshold:
+To find the optimal threshold, I created a plot from the ROC attributes - Sensitivity, Specificity and Threshold. The point where both Sensitivity and Specificity are intersecting, the corresponding threshold is the optimum.
+
+```{r}
+# look at TPR (Sensitivity) and TNR (Specificity) distribution over threshold for Original data
+matplot(data.frame(myROC$sensitivities, myROC$specificities), x = myROC$thresholds, type='l', xlab = 'threshold', ylab='TPR, TNR')
+legend('bottomright', legend=c('TPR', 'TNR'), lty=1:2, col=1:2)
+```
+
+```{r}
+# Confusion matrix for Original data with Optimal threshold of 0.1
+confusion.matrix(bank.test$ObsY, bank.test$predSub, threshold = 0.1)
+accuracy(bank.test$ObsY, bank.test$predSub,0.10)
+```
+
+```{r}
+# look at TPR (Sensitivity) and TNR (Specificity) distribution over threshold for Standardized data
+matplot(data.frame(myROC1$sensitivities, myROC1$specificities), x = myROC1$thresholds, type='l', xlab = 'threshold', ylab='TPR, TNR')
+legend('bottomright', legend=c('TPR', 'TNR'), lty=1:2, col=1:2)
+```
+
+```{r}
+# Confusion matrix for Standardized data with Optimal threshold of 0.1
+confusion.matrix(bank.test$ObsY, bank.test$predSub1, threshold = 0.1)
+accuracy(bank.test$ObsY, bank.test$predSub1,0.1)
+```
+With both Standardized and Original datasets, the optimum threshold is 0.1 which means that if the probability is >0.1, we should conclude that the subscriber will subscribe to the term deposit. Sensitivity, Specificity and Accuracy are greater than 80%.
+
+DATA BALANCING:
+As the dataset is imbalanced, we need to perform data balancing to improve the prediction. There are many methods available like Under Sampling, Over Sampling, SMOTE etc. For this model, I used Random Over Sampling method (ROSE) with Standardized data.
+
+Iteration with Balancing through ROSE method for Standardized data
+```{r}
+#Random Over Sampling (ROSE) for Original data and perform Logistic Regression
+
+library(ROSE)
+```
+
+
+```{r}
+#ROSE
+data_rose <- ROSE(y ~ age_imp + job_level + marital_level + edu_level + default
+                + balance_imp + housing + loan + contact + day
+                + month_level + duration_imp + campaign_imp + pdays_imp + previous_imp
+                + poutcome_level, data = bank.train, seed = 1)$data
+table(data_rose$y)
+```
+As we can see above, ROSE made the minority positive outcome to be equal to majority negative outcome in the train data. This can be used to perform logistic regression and predict the test data.
+
+LOGISTIC REGRESSION OF BALANCED STANDARDIZED DATA:
+Logistic regression with Standardized and balanced data is performed as given below
+
+```{r}
+#build logistic model Balanced data
+glm.rose <- glm(y ~ age_imp + job_level + marital_level + edu_level + default
+                + balance_imp + housing + loan + contact + day
+                + month_level + duration_imp + campaign_imp + pdays_imp + previous_imp
+                + poutcome_level,data = data_rose, family = "binomial")
+summary(glm.rose)
+```
+This shows that loan default, contact: telephone, pdays and previous are statistically not significant in predicting the outcome.
+
+This logistic regression performed on the train data is used to predict the test data as given below
+```{r}
+#make predictions with Balanced data
+pred.glm.rose <- predict.glm(glm.rose, newdata = bank.test, type = "response")
+```
+
+INFERENCES FROM LOGISTIC REGRESSION OF BALANCED DATA
+```{r}
+# Confusion Matrix
+confusion.matrix(bank.test$ObsY, pred.glm.rose)
+accuracy(bank.test$ObsY, pred.glm.rose)
+```
+Confusion Matrix shows that sensitivity, specificity and accuracy are greater than 82% and balanced. Moreover this prediction is for threshold 0.5 while the earlier model has the optimum threshold of 0.1
+
+```{r}
+#AUC ROSE
+myROCS <-roc(bank.test$ObsY, pred.glm.rose)
+myROCS
+plot(myROCS)
+```
+AUC remains same of 90.8% when compared to the earlier model
+
+```{r}
+# look at TPR (Sensitivity) and TNR (Specificity) distribution over threshold for Original data
+matplot(data.frame(myROCS$sensitivities, myROCS$specificities), x = myROCS$thresholds, type='l', xlab = 'threshold', ylab='TPR, TNR')
+legend('bottomright', legend=c('TPR', 'TNR'), lty=1:2, col=1:2)
+```
+The optimum threshold is 0.5 since that data is perfectly balanced. Customers with predicted probabilities greater than 0.5 will subscribe to the term deposit. 
+
+DECISION TREE FOR STANDARDIZED BALANCED DATA
+Since this is a classification problem, this can also be addressed through decision tree. Here I took the standardized and balanced dataset (ROSE) to create decision tree. Decision tree is created based on Recursive Partitioning algorithm (rpart).
+```{r}
+# Decision Tree for standardised data with ROSE Balancing
+library(rpart)
+tree.rose <- rpart(y ~., data = data_rose)
+tree.rose
+```
+
+```{r}
+library(rpart.plot)
+rpart.plot(tree.rose, nn = TRUE)
+```
+As we can infer from the above, the duration of the call is the root node with probability of not subscribing to the term deposit is 50%. If the duration of the call is greater than 299 seconds, the probability of positive outcome is 73% (45% of the total population). Within this, if the duration if greater than 512 seconds, the probability of positive outcome is 84% (25% of the overall population). If the duration of the call is less than 512 seconds, the probability of positive outcome is 60% (20% of the total population). Within this, if the contact mode is cellular or telephone (not unknown), the probability of positive outcome is 68% (17% of the population).
+If the duration of the call is less than 299 seconds and if the probability of previous outcome is success, the probability of positive outcome is 90% (5% of the population). If the duration if less than 299 seconds and if the previous outcome is failure or unknown and if the month of contact is Feb, Apr, May, Sep, Oct, Dec, the probability of positive outcome is 58% (11% of the population). Within this, if the person is not having housing loan, then the probability of positive outcome is 70% (7% of the population).
+This decision tree probabilities from train data is used to predict the test data.
+
+
+```{r, results='hide'}
+#Decision Tree Prediction
+pred.tree.rose <- predict(tree.rose, newdata = bank.test)
+pred.tree.rose
+```
+
+```{r}
+#Confusion Matrix
+library(SDMTools)
+confusion.matrix(bank.test$ObsY, pred.tree.rose[,2])
+accuracy(bank.test$ObsY, pred.tree.rose[,2])
+```
+The confusion matrix for decision tree shows that True positive (and Sensitivity) is increased while the True negative (and Specificity) is decreased. Accuracy is also reduced to 81% when compared to Logistic Regression. Cohen's Kappa is also lesser when compared to Logistic Regression. 
+
+```{r}
+#ROC Curve
+library(pROC)
+myROCD <- roc(bank.test$y, pred.tree.rose[,2])
+myROCD
+plot(myROCD)
+```
+AUC has been decreased a lot to 84.48% when compared to the Logistic Regression.
+
+```{r}
+# look at TPR (Sensitivity) and TNR (Specificity) distribution over threshold
+matplot(data.frame(myROCD$sensitivities, myROCD$specificities), x = myROCD$thresholds, type='l', xlab = 'threshold', ylab='TPR, TNR')
+legend('bottomright', legend=c('TPR', 'TNR'), lty=1:2, col=1:2)
+```
+
+
+```{r}
+confusion.matrix(bank.test$ObsY, pred.tree.rose[,2], threshold = 0.55)
+accuracy(bank.test$ObsY, pred.tree.rose[,2],0.55)
+```
+The optimum threshold is found to be 0.55. The specificity still remains less than 80%.
+
+INFERENCES ON THE MODEL:
+Per the extensive data analysis done using logistic regression models (with structured data, with original data, with structured and balanced data) and decision tree model (with structured and balanced data), it is inferred that the best model among these in doing the prediction is Logistic Regression with Structured and Balanced Data. The Accuracy of the model is 83% with Sensitivity of 82.79%, Specificity of 83.37% and with threshold of 0.5. Cohen's Kappa of 0.45 shows that the model has moderate fit. AUC is good at 90.8%
+
